@@ -133,6 +133,18 @@ static void setApplicationIcon(void *icon, int length) {
 	});
 }
 
+// Set the application dock tile badge label
+static void setBadgeLabel(const char *label) {
+    @autoreleasepool {
+		NSString *nsLabel = nil;
+		if (label != NULL) {
+			nsLabel = [NSString stringWithUTF8String:label];
+		}
+		[[NSApp dockTile] setBadgeLabel:nsLabel];
+		[[NSApp dockTile] display];
+	}
+}
+
 // Hide the application
 static void hide(void) {
 	[NSApp hide:nil];
@@ -204,6 +216,15 @@ func (m *macosApp) on(eventID uint) {
 
 func (m *macosApp) setIcon(icon []byte) {
 	C.setApplicationIcon(unsafe.Pointer(&icon[0]), C.int(len(icon)))
+}
+
+func (m *macosApp) setBadge(label string) {
+	var cLabel *C.char
+	if label != "" {
+		cLabel = C.CString(label)
+		defer C.free(unsafe.Pointer(cLabel))
+	}
+	C.setBadgeLabel(cLabel)
 }
 
 func (m *macosApp) name() string {
