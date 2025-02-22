@@ -927,6 +927,14 @@ func (a *App) SetIcon(icon []byte) {
 	}
 }
 
+func (a *App) SetBadge(label string) {
+	if a.impl != nil {
+		if macApp, ok := a.impl.(*macosApp); ok {
+			macApp.setBadge(label)
+		}
+	}
+}
+
 func (a *App) SetMenu(menu *Menu) {
 	a.ApplicationMenu = menu
 	if a.impl != nil {
