@@ -103,6 +103,9 @@ func (m *windowsApp) on(_ uint) {
 func (m *windowsApp) setIcon(_ []byte) {
 }
 
+func (m *windowsApp) setBadge(_ string) {
+}
+
 func (m *windowsApp) name() string {
 	//appName := C.getAppName()
 	//defer C.free(unsafe.Pointer(appName))

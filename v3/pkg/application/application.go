@@ -189,6 +189,7 @@ type (
 		getCurrentWindowID() uint
 		showAboutDialog(name string, description string, icon []byte)
 		setIcon(icon []byte)
+		setBadge(label string)
 		on(id uint)
 		dispatchOnMainThread(id uint)
 		hide()
@@ -929,9 +930,7 @@ func (a *App) SetIcon(icon []byte) {
 
 func (a *App) SetBadge(label string) {
 	if a.impl != nil {
-		if macApp, ok := a.impl.(*macosApp); ok {
-			macApp.setBadge(label)
-		}
+		a.impl.setBadge(label)
 	}
 }
 

@@ -17,6 +17,7 @@ func main() {
 	})
 
 	app.OnApplicationEvent(events.Common.ApplicationStarted, func(event *application.ApplicationEvent) {
+		time.Sleep(time.Second * 1)
 		app.SetBadge("1")
 		time.Sleep(time.Second * 5)
 		app.SetBadge("label")
