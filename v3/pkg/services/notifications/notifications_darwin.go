@@ -3,8 +3,8 @@
 package notifications
 
 /*
-#cgo CFLAGS:-x objective-c
-#cgo LDFLAGS: -framework Foundation -framework Cocoa
+#cgo CFLAGS: -x objective-c
+#cgo LDFLAGS: -framework Foundation
 
 #if __MAC_OS_X_VERSION_MAX_ALLOWED >= 110000
 #cgo LDFLAGS: -framework UserNotifications
