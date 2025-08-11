@@ -799,7 +799,7 @@ func windowMinimize(window pointer) {
 	gtkWindowMinimize(window)
 }
 
-func windowNew(application pointer, menu pointer, windowId uint, gpuPolicy int) (pointer, pointer, pointer) {
+func windowNew(application pointer, menu pointer, windowId uint, gpuPolicy int, partition string) (pointer, pointer, pointer) {
 	window := gtkApplicationWindowNew(application)
 	gObjectRefSink(window)
 	webview := windowNewWebview(windowId, gpuPolicy)

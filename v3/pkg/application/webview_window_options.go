@@ -86,6 +86,18 @@ type WebviewWindowOptions struct {
 	// CSS is the CSS to load in the window.
 	CSS string
 
+	// Partition selects the browser session partition for this window.
+	// An empty string uses the default profile.
+	// Use an arbitrary name for an ephemeral, in-memory session (cleared when the window is closed).
+	// Prefix with "persist:" to create or reuse a persistent profile directory, e.g. "persist:profile1".
+	//
+	// Platform notes:
+	// - Windows (WebView2): persistent partitions are stored under the app's user data path; ephemeral partitions use a temp folder cleaned on window destroy.
+	// - Linux (WebKitGTK): persistent partitions use separate data/cache directories; ephemeral uses an ephemeral WebKit context.
+	// - macOS (WKWebView): ephemeral partitions use WKWebsiteDataStore.nonPersistentDataStore. Multiple persistent named partitions are not
+	//   supported by WKWebView; they will fall back to the default persistent store but use a separate process pool for better isolation.
+	Partition string
+
 	// Initial Position
 	InitialPosition WindowStartPosition
 

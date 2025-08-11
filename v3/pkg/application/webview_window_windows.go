@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -79,6 +81,11 @@ type windowsWebviewWindow struct {
 
 	// menubarTheme is the theme for the menubar
 	menubarTheme *w32.MenuBarTheme
+
+	// Partition tracking (Windows)
+	partitionName        string
+	partitionIsEphemeral bool
+	partitionPath        string
 }
 
 func (w *windowsWebviewWindow) setMenu(menu *Menu) {
@@ -715,6 +722,11 @@ func (w *windowsWebviewWindow) destroy() {
 	w.parent.markAsDestroyed()
 	if w.dropTarget != nil {
 		w.dropTarget.Release()
+	}
+	// Cleanup ephemeral partition path, best-effort
+	if w.partitionIsEphemeral && w.partitionPath != "" {
+		// Remove the directory tree; ignore errors to avoid disrupting shutdown
+		_ = os.RemoveAll(w.partitionPath)
 	}
 	// destroy the window
 	w32.DestroyWindow(w.hwnd)
@@ -1875,6 +1887,45 @@ func (w *windowsWebviewWindow) setupChromium() {
 	debugMode := globalApplication.isDebugMode
 
 	opts := w.parent.options.Windows
+	// Partition support
+	partition := strings.TrimSpace(w.parent.options.Partition)
+	if partition != "" {
+		// Determine base data path
+		base := strings.TrimSpace(globalApplication.options.Windows.WebviewUserDataPath)
+		if strings.HasPrefix(partition, "persist:") {
+			name := strings.TrimPrefix(partition, "persist:")
+			if base == "" {
+				// Default to %APPDATA%\\<AppName>
+				if appdata, err := w32.SHGetKnownFolderPath(w32.FOLDERID_RoamingAppData, 0, 0); err == nil {
+					appName := w.parent.options.Name
+					if appName == "" {
+						appName = "WailsApp"
+					}
+					base = filepath.Join(appdata, appName)
+				}
+			}
+			target := base
+			if target == "" {
+				// If all else fails, fall back to temp dir for safety
+				target = filepath.Join(os.TempDir(), "Wails", "WebView2", "Persistent")
+			}
+			w.partitionName = name
+			w.partitionIsEphemeral = false
+			w.partitionPath = filepath.Join(target, "Partitions", name)
+			_ = os.MkdirAll(w.partitionPath, 0o755)
+			chromium.DataPath = w.partitionPath
+		} else {
+			// Ephemeral session – use a temp data path that we will clean up on destroy
+			name := partition
+			w.partitionName = name
+			w.partitionIsEphemeral = true
+			// Keep a stable temp folder for this window so cache works during the window lifetime
+			tempRoot := filepath.Join(os.TempDir(), "Wails", "WebView2", "Ephemeral", name)
+			_ = os.MkdirAll(tempRoot, 0o755)
+			w.partitionPath = tempRoot
+			chromium.DataPath = w.partitionPath
+		}
+	}
 
 	webview2version, err := webviewloader.GetAvailableCoreWebView2BrowserVersionString(
 		globalApplication.options.Windows.WebviewBrowserPath,
@@ -1904,7 +1955,9 @@ func (w *windowsWebviewWindow) setupChromium() {
 		chromium.AdditionalBrowserArgs = append(chromium.AdditionalBrowserArgs, opts.AdditionalLaunchArgs...)
 	}
 
-	chromium.DataPath = globalApplication.options.Windows.WebviewUserDataPath
+	if chromium.DataPath == "" {
+		chromium.DataPath = globalApplication.options.Windows.WebviewUserDataPath
+	}
 	chromium.BrowserPath = globalApplication.options.Windows.WebviewBrowserPath
 
 	if opts.Permissions != nil {

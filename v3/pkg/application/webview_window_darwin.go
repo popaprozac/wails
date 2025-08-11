@@ -10,6 +10,7 @@ package application
 #include "webview_window_darwin.h"
 #include <stdlib.h>
 #include "Cocoa/Cocoa.h"
+#include <string.h>
 #import <WebKit/WebKit.h>
 #import <AppKit/AppKit.h>
 #import "webview_window_darwin_drag.h"
@@ -22,6 +23,12 @@ struct WebviewPreferences {
 };
 
 extern void registerListener(unsigned int event);
+
+// Global to pass partition from Go without changing function ABI
+static const char* wails_current_partition = NULL;
+void setCurrentPartition(const char* partition) {
+    wails_current_partition = partition;
+}
 
 // Create a new Window
 void* windowNew(unsigned int id, int width, int height, bool fraudulentWebsiteWarningEnabled, bool frameless, bool enableDragAndDrop, struct WebviewPreferences preferences) {
@@ -58,7 +65,7 @@ void* windowNew(unsigned int id, int width, int height, bool fraudulentWebsiteWa
 
 	// Embed wkwebview in window
 	NSRect frame = NSMakeRect(0, 0, width, height);
-	WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
+    WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
 	[config autorelease];
 
 	// Set preferences
@@ -84,7 +91,22 @@ void* windowNew(unsigned int id, int width, int height, bool fraudulentWebsiteWa
 
 	config.suppressesIncrementalRendering = true;
     config.applicationNameForUserAgent = @"wails.io";
-	[config setURLSchemeHandler:delegate forURLScheme:@"wails"];
+    [config setURLSchemeHandler:delegate forURLScheme:@"wails"];
+
+    // Partition handling (ephemeral partitions only on macOS). If a non-empty partition is provided
+    // and does not start with "persist:", use an ephemeral data store. For any non-empty partition
+    // (ephemeral or pseudo-persistent), use a separate process pool to improve isolation.
+    if (wails_current_partition != NULL && strlen(wails_current_partition) > 0) {
+        NSString* p = [NSString stringWithUTF8String:wails_current_partition];
+        if (p != nil) {
+            if (![p hasPrefix:@"persist:"]) {
+                config.websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
+            }
+            WKProcessPool* pool = [[WKProcessPool alloc] init];
+            [config setProcessPool:pool];
+            [pool release];
+        }
+    }
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101500
  	if (@available(macOS 10.15, *)) {
@@ -1216,6 +1238,12 @@ func (w *macosWebviewWindow) run() {
 		options := w.parent.options
 		macOptions := options.Mac
 
+		// Set current partition for native constructor
+		{
+			cp := C.CString(w.parent.options.Partition)
+			defer C.free(unsafe.Pointer(cp))
+			C.setCurrentPartition(cp)
+		}
 		w.nsWindow = C.windowNew(C.uint(w.parent.id),
 			C.int(options.Width),
 			C.int(options.Height),

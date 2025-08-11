@@ -284,17 +284,17 @@ func getLinuxWebviewWindow(window Window) *linuxWebviewWindow {
 	if window == nil {
 		return nil
 	}
-	
+
 	webviewWindow, ok := window.(*WebviewWindow)
 	if !ok {
 		return nil
 	}
-	
+
 	lw, ok := webviewWindow.impl.(*linuxWebviewWindow)
 	if !ok {
 		return nil
 	}
-	
+
 	return lw
 }
 
@@ -1065,10 +1065,10 @@ func (w *linuxWebviewWindow) minimise() {
 	C.gtk_window_iconify(w.gtkWindow())
 }
 
-func windowNew(application pointer, menu pointer, windowId uint, gpuPolicy WebviewGpuPolicy) (window, webview, vbox pointer) {
+func windowNew(application pointer, menu pointer, windowId uint, gpuPolicy WebviewGpuPolicy, partition string) (window, webview, vbox pointer) {
 	window = pointer(C.gtk_application_window_new((*C.GtkApplication)(application)))
 	C.g_object_ref_sink(C.gpointer(window))
-	webview = windowNewWebview(windowId, gpuPolicy)
+	webview = windowNewWebviewWithPartition(windowId, gpuPolicy, partition)
 	vbox = pointer(C.gtk_box_new(C.GTK_ORIENTATION_VERTICAL, 0))
 	name := C.CString("webview-box")
 	defer C.free(unsafe.Pointer(name))
@@ -1082,26 +1082,36 @@ func windowNew(application pointer, menu pointer, windowId uint, gpuPolicy Webvi
 	return
 }
 
-func windowNewWebview(parentId uint, gpuPolicy WebviewGpuPolicy) pointer {
+func windowNewWebviewWithPartition(parentId uint, gpuPolicy WebviewGpuPolicy, partition string) pointer {
 	c := NewCalloc()
 	defer c.Free()
-	manager := C.webkit_user_content_manager_new()
-	C.webkit_user_content_manager_register_script_message_handler(manager, c.String("external"))
-	webView := C.webkit_web_view_new_with_user_content_manager(manager)
+
+	// Create context: ephemeral if partition set without persist:, otherwise default context
+	var context *C.WebKitWebContext
+	if partition != "" && !strings.HasPrefix(partition, "persist:") {
+		context = C.webkit_web_context_new_ephemeral()
+	} else {
+		context = C.webkit_web_context_get_default()
+	}
+
+	webView := C.webkit_web_view_new_with_context(context)
+
+	// Ensure we have a user content manager and register the bridge handler
+	ucm := C.webkit_web_view_get_user_content_manager((*C.WebKitWebView)(unsafe.Pointer(webView)))
+	C.webkit_user_content_manager_register_script_message_handler(ucm, c.String("external"))
 
 	// attach window id to both the webview and contentmanager
 	C.save_window_id(unsafe.Pointer(webView), C.uint(parentId))
 	C.save_window_id(unsafe.Pointer(manager), C.uint(parentId))
 
-	registerURIScheme.Do(func() {
-		context := C.webkit_web_view_get_context(C.webkit_web_view(webView))
-		C.webkit_web_context_register_uri_scheme(
-			context,
-			c.String("wails"),
-			C.WebKitURISchemeRequestCallback(C.onProcessRequest),
-			nil,
-			nil)
-	})
+	// Always register the scheme for this context
+	ctx := C.webkit_web_view_get_context(C.webkit_web_view(webView))
+	C.webkit_web_context_register_uri_scheme(
+		ctx,
+		c.String("wails"),
+		C.WebKitURISchemeRequestCallback(C.onProcessRequest),
+		nil,
+		nil)
 	settings := C.webkit_web_view_get_settings((*C.WebKitWebView)(unsafe.Pointer(webView)))
 	C.webkit_settings_set_user_agent_with_application_details(settings, c.String("wails.io"), c.String(""))
 

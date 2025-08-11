@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"time"
 
+	"unsafe"
+
 	"github.com/bep/debounce"
 	"github.com/wailsapp/wails/v3/internal/assetserver"
 	"github.com/wailsapp/wails/v3/internal/capabilities"
 	"github.com/wailsapp/wails/v3/internal/runtime"
 	"github.com/wailsapp/wails/v3/pkg/events"
-	"unsafe"
 )
 
 type dragInfo struct {
@@ -278,7 +279,13 @@ func (w *linuxWebviewWindow) run() {
 		w.gtkmenu = (menu.impl).(*linuxMenu).native
 	}
 
-	w.window, w.webview, w.vbox = windowNew(app.application, w.gtkmenu, w.parent.id, w.parent.options.Linux.WebviewGpuPolicy)
+	w.window, w.webview, w.vbox = windowNew(
+		app.application,
+		w.gtkmenu,
+		w.parent.id,
+		w.parent.options.Linux.WebviewGpuPolicy,
+		w.parent.options.Partition,
+	)
 	app.registerWindow(w.window, w.parent.id) // record our mapping
 	w.connectSignals()
 	if w.parent.options.EnableDragAndDrop {
