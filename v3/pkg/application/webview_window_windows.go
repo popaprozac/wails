@@ -1895,13 +1895,13 @@ func (w *windowsWebviewWindow) setupChromium() {
 		if strings.HasPrefix(partition, "persist:") {
 			name := strings.TrimPrefix(partition, "persist:")
 			if base == "" {
-				// Default to %APPDATA%\\<AppName>
-				if appdata, err := w32.SHGetKnownFolderPath(w32.FOLDERID_RoamingAppData, 0, 0); err == nil {
+				// Default to user config dir (usually %APPDATA%)\\<AppName>
+				if confDir, uerr := os.UserConfigDir(); uerr == nil && confDir != "" {
 					appName := w.parent.options.Name
 					if appName == "" {
 						appName = "WailsApp"
 					}
-					base = filepath.Join(appdata, appName)
+					base = filepath.Join(confDir, appName)
 				}
 			}
 			target := base
